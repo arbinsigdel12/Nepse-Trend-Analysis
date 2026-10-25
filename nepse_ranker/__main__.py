@@ -57,6 +57,8 @@ def _predict(p):
     from .model import score_latest
     df = pd.read_parquet(p.features)
     out = score_latest(df, p)
+    from .news_features import attach_news_flags
+    out = attach_news_flags(p)
     print(f"Ranking for {out['date'].iloc[0].date()}  ({len(out)} tradable stocks)")
     show = out.head(10)[["rank", "symbol", "score_pct", "close", "ret_1", "ret_5", "turn_20"]]
     print(show.round(3).to_string(index=False))
@@ -71,6 +73,11 @@ def main(argv=None):
     sub.add_parser("update", help="download any days missed since the last run")
     sub.add_parser("news-fetch", help="download official NEPSE news and disclosures")
     sub.add_parser("news-inspect", help="show what the saved news looks like")
+    sub.add_parser("longterm-build", help="build the long-term risk and history screen")
+    sub.add_parser("company-fetch", help="download sectors and dividend/bonus/right history")
+    sub.add_parser("company-inspect", help="summarise the downloaded company data")
+    sub.add_parser("floorsheet-collect", help="save today's floorsheet (every trade) after the close")
+    sub.add_parser("floorsheet-inspect", help="show what has been collected so far")
     sub.add_parser("news-build", help="clean the news, link it to stocks, tag event types")
     sub.add_parser("news-study", help="check what happens to prices after each kind of news")
     sub.add_parser("inspect-raw", help="show what the downloaded data looks like")
@@ -105,6 +112,21 @@ def main(argv=None):
     elif a.cmd == "news-study":
         from .news_prep import run_event_study
         run_event_study(p)
+    elif a.cmd == "floorsheet-collect":
+        from .floorsheet import collect_floorsheet
+        collect_floorsheet(p)
+    elif a.cmd == "floorsheet-inspect":
+        from .floorsheet import inspect_floorsheet
+        print(inspect_floorsheet(p))
+    elif a.cmd == "company-fetch":
+        from .company import fetch_company_data
+        fetch_company_data(p)
+    elif a.cmd == "company-inspect":
+        from .company import inspect_company
+        print(inspect_company(p))
+    elif a.cmd == "longterm-build":
+        from .longterm import run_longterm_build
+        run_longterm_build(p)
     elif a.cmd == "news-inspect":
         from .news import inspect_news
         print(inspect_news(p))

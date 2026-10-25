@@ -1,4 +1,4 @@
-﻿"""Pull cash-dividend and bonus declarations out of the announcement text.
+"""Pull cash-dividend and bonus declarations out of the announcement text.
 
 The NEPSE corporate-action feed has bonus and right shares only. Newer dividend announcements
 state the amounts in a fixed pattern, for example:
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 
+import numpy as np
 import pandas as pd
 
 from .company import _read, company_dir
@@ -22,6 +23,15 @@ BONUS = re.compile(r"bonus\s*shares?[^0-9]{0,25}([\d]+(?:\.\d+)?)\s*%", re.I)
 
 def dividends_path(p: Paths):
     return company_dir(p) / "dividends.parquet"
+
+
+def _infer_fy(date) -> int:
+    """Start year (Bikram Sambat) of the fiscal year a dividend announced on `date` belongs to.
+
+    Nepal's fiscal year ends in mid-July. Dividends are announced after it closes, so an
+    August to December announcement belongs to the year that ended that July.
+    """
+    return date.year + 56 if date.month >= 8 else date.year + 55
 
 
 def _first(rx, text):
@@ -38,6 +48,13 @@ def parse_declarations(news: pd.DataFrame) -> pd.DataFrame:
     n["fy_start"] = pd.to_numeric(fy[0], errors="coerce")
     n["cash_pct"] = text.map(lambda t: _first(CASH, t))
     n["bonus_pct"] = text.map(lambda t: _first(BONUS, t))
+    n.loc[n["fy_start"] < 2050, "fy_start"] += 57          # some give the fiscal year in AD, e.g. 2020-21
+    n["fy_stated"] = n["fy_start"].notna()
+    none_rx = r"no dividend|non[- ]?distribution of dividend|not to distribute|no cash dividend|no bonus"
+    zero = text.str.contains(none_rx, case=False, regex=True) & n["cash_pct"].isna() & n["bonus_pct"].isna()
+    n.loc[zero, ["cash_pct", "bonus_pct"]] = 0.0        # an explicit "no dividend" notice means zero, not unknown
+    infer = n["fy_start"].isna() & (n["cash_pct"].notna() | n["bonus_pct"].notna())
+    n.loc[infer, "fy_start"] = n.loc[infer, "published"].map(_infer_fy)   # e.g. book-close notices
     return n
 
 
@@ -47,12 +64,13 @@ def run_dividends_build(p: Paths | None = None) -> pd.DataFrame:
     n = parse_declarations(news)
     n = n[n["symbol"].notna()]
     print(f"Announcements mentioning dividend or bonus: {len(n):,}")
-    print(f"  with a fiscal year stated: {int(n['fy_start'].notna().sum()):,}")
+    print(f"  with a fiscal year stated: {int(n['fy_stated'].sum()):,}")
     print(f"  with a cash dividend %:    {int(n['cash_pct'].notna().sum()):,}")
     print(f"  with a bonus %:            {int(n['bonus_pct'].notna().sum()):,}")
-    known = n[n["fy_start"].notna() & (n["cash_pct"].notna() | n["bonus_pct"].notna())]
+    print(f"  fiscal year inferred from the date (no year stated, amounts present): {int((~n['fy_stated'] & n['fy_start'].notna()).sum()):,}")
+    known = n[n["fy_start"].notna() & (n["cash_pct"].notna() | n["bonus_pct"].notna())].sort_values("published")
     per_year = (known.groupby(["symbol", "fy_start"])
-                .agg(cash_pct=("cash_pct", "max"), bonus_pct_text=("bonus_pct", "max"),
+                .agg(cash_pct=("cash_pct", "last"), bonus_pct_text=("bonus_pct", "last"),
                      declared=("published", "min")).reset_index())
 
     actions = _read(company_dir(p) / "corporate_actions.json", {})
@@ -82,12 +100,12 @@ def run_dividends_build(p: Paths | None = None) -> pd.DataFrame:
         if len(s):
             print(f"\n{sym}:")
             print(s[["fy_start", "cash_pct", "bonus_pct"]].to_string(index=False))
-    miss = n[n["fy_start"].notna() & n["cash_pct"].isna() & n["bonus_pct"].isna()]
+    miss = n[n["fy_stated"] & n["cash_pct"].isna() & n["bonus_pct"].isna()]
     print(f"\nDeclarations with a fiscal year but no amounts in the text: {len(miss)} (amounts are probably in attached PDFs).")
     print("A few of them:")
     for _, r in miss.sample(min(5, len(miss)), random_state=1).iterrows():
         print(f"  {r['symbol']} {r['published'].date()}: {r['body'][:160]}")
-    nofy = n[n["fy_start"].isna()]
+    nofy = n[n["fy_start"].isna()]   # no fiscal year and no amounts anywhere
     print(f"\nDeclarations with no fiscal year in the text: {len(nofy)}. A few of them:")
     for _, r in nofy.sample(min(5, len(nofy)), random_state=1).iterrows():
         print(f"  {r['symbol']} {r['published'].date()}: {str(r['title'])[:70]} | {r['body'][:110]}")

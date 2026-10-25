@@ -73,6 +73,8 @@ def main(argv=None):
     sub.add_parser("update", help="download any days missed since the last run")
     sub.add_parser("news-fetch", help="download official NEPSE news and disclosures")
     sub.add_parser("news-inspect", help="show what the saved news looks like")
+    sub.add_parser("status", help="health check: how fresh is every dataset")
+    sub.add_parser("dividends-build", help="extract cash dividend and bonus declarations from announcements")
     sub.add_parser("longterm-build", help="build the long-term risk and history screen")
     sub.add_parser("company-fetch", help="download sectors and dividend/bonus/right history")
     sub.add_parser("company-inspect", help="summarise the downloaded company data")
@@ -127,6 +129,12 @@ def main(argv=None):
     elif a.cmd == "longterm-build":
         from .longterm import run_longterm_build
         run_longterm_build(p)
+    elif a.cmd == "dividends-build":
+        from .dividends import run_dividends_build
+        run_dividends_build(p)
+    elif a.cmd == "status":
+        from .status import run_status
+        run_status(p)
     elif a.cmd == "news-inspect":
         from .news import inspect_news
         print(inspect_news(p))

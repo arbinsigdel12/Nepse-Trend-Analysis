@@ -1,4 +1,4 @@
-﻿"""Long-term screen: risk, history, dilution and red flags for every ordinary share.
+"""Long-term screen: risk, history, dilution and red flags for every ordinary share.
 
 It does NOT value companies: earnings and book value are not in the data yet, and the NEPSE
 feed has no cash dividends. A stock passing the checks is not a recommendation to buy it.
@@ -50,6 +50,58 @@ def build_longterm(p: Paths | None = None, min_turnover: float = 1_000_000.0) ->
         news = news[news["published"] >= last - pd.Timedelta(days=365)]
         flag_counts = news[news[cols].any(axis=1)].groupby("symbol").size()
 
+    dp = company_dir(p) / "dividends.parquet"
+    div_by, fy_cur = {}, 0
+    if dp.exists():
+        dv = pd.read_parquet(dp)
+        dv["paid"] = (dv["cash_pct"].fillna(0) > 0) | (dv["bonus_pct"].fillna(0) > 0)
+        fy_cur = int(dv["fy_start"].max())
+        div_by = {s: g for s, g in dv.groupby("symbol")}
+
+    def div_metrics(sym, last_close):
+        out = {"dividend_years_5fy": np.nan, "cash_avg_3fy_pct": np.nan, "cash_known_3fy": 0, "cash_yield": np.nan}
+        if not div_by:
+            return out
+        ds = div_by.get(sym)
+        if ds is None:
+            out["dividend_years_5fy"] = 0
+            return out
+        done = ds[(ds["fy_start"] >= fy_cur - 5) & (ds["fy_start"] <= fy_cur - 1)]
+        out["dividend_years_5fy"] = int(done.loc[done["paid"], "fy_start"].nunique())
+        c3 = ds[(ds["fy_start"] >= fy_cur - 3) & (ds["fy_start"] <= fy_cur - 1)]["cash_pct"].dropna()
+        out["cash_known_3fy"] = len(c3)
+        if len(c3):
+            out["cash_avg_3fy_pct"] = float(c3.mean())
+            face = float(cls.get(sym, {}).get("faceValue") or 100)
+            out["cash_yield"] = out["cash_avg_3fy_pct"] / 100 * face / last_close
+        return out
+
+    dp = company_dir(p) / "dividends.parquet"
+    div_by, fy_cur = {}, 0
+    if dp.exists():
+        dv = pd.read_parquet(dp)
+        dv["paid"] = (dv["cash_pct"].fillna(0) > 0) | (dv["bonus_pct"].fillna(0) > 0)
+        fy_cur = int(dv["fy_start"].max())
+        div_by = {s: g for s, g in dv.groupby("symbol")}
+
+    def div_metrics(sym, last_close):
+        out = {"dividend_years_5fy": np.nan, "cash_avg_3fy_pct": np.nan, "cash_known_3fy": 0, "cash_yield": np.nan}
+        if not div_by:
+            return out
+        ds = div_by.get(sym)
+        if ds is None:
+            out["dividend_years_5fy"] = 0
+            return out
+        done = ds[(ds["fy_start"] >= fy_cur - 5) & (ds["fy_start"] <= fy_cur - 1)]
+        out["dividend_years_5fy"] = int(done.loc[done["paid"], "fy_start"].nunique())
+        c3 = ds[(ds["fy_start"] >= fy_cur - 3) & (ds["fy_start"] <= fy_cur - 1)]["cash_pct"].dropna()
+        out["cash_known_3fy"] = len(c3)
+        if len(c3):
+            out["cash_avg_3fy_pct"] = float(c3.mean())
+            face = float(cls.get(sym, {}).get("faceValue") or 100)
+            out["cash_yield"] = out["cash_avg_3fy_pct"] / 100 * face / last_close
+        return out
+
     rows = []
     for sym, g in px.groupby("symbol"):
         g = g.sort_values("date")
@@ -83,6 +135,7 @@ def build_longterm(p: Paths | None = None, min_turnover: float = 1_000_000.0) ->
             "traded_share_1y": float(g["traded"].tail(TRADING_DAYS).mean()),
             "bonus_5fy_total_pct": float(sum(bonus)), "bonus_years_5fy": len(bonus),
             "rights_issues_5fy": len(rights), "red_flags_1y": int(flag_counts.get(sym, 0)),
+            **div_metrics(sym, float(g["close"].iloc[-1])),
         })
     df = pd.DataFrame(rows)
     df["c_history"] = (df["listed_years"] >= 5) & (df["price_years"] >= 3)

@@ -291,8 +291,8 @@ with t6:
         st.markdown("**A risk and history screen, not a valuation.** It checks how long a stock has traded, "
                     "how easily it trades, how deep its past falls were, how volatile it is, whether it keeps "
                     "issuing right shares, and whether it has recent red-flag news. Earnings, book value and "
-                    "cash dividends are not in the data yet, so it cannot say whether a stock is cheap or "
-                    "pays well. Passing is not a reason to buy.")
+                    "cash dividends are only partly known (read from announcement text; blank means unknown), so it "
+                    "cannot say whether a stock is cheap. Passing is not a reason to buy.")
         c1, c2, c3 = st.columns(3)
         sector_list = sorted(scr["sector"].dropna().unique())
         pick = c1.multiselect("Sectors", sector_list, default=sector_list)
@@ -311,6 +311,12 @@ with t6:
             "Volatility % (yearly)": d["vol_ann"] * 100, "Worst fall, 5y %": d["max_dd_5y"] * 100,
             "Median turnover (NPR m)": d["median_turnover_120d"] / 1e6,
             "Bonus, last 5 FY (%)": d["bonus_5fy_total_pct"], "Rights issues, 5 FY": d["rights_issues_5fy"],
+            "Dividend years, last 5 FY": d.get("dividend_years_5fy"),
+            "Avg cash dividend % (3 FY)": d.get("cash_avg_3fy_pct"),
+            "Cash yield %": d["cash_yield"] * 100 if "cash_yield" in d.columns else None,
+            "Dividend years, last 5 FY": d.get("dividend_years_5fy"),
+            "Avg cash dividend % (3 FY)": d.get("cash_avg_3fy_pct"),
+            "Cash yield %": d["cash_yield"] * 100 if "cash_yield" in d.columns else None,
             "Red flags, 1y": d["red_flags_1y"], "Failed checks": d["fails"]})
         st.dataframe(table, hide_index=True, column_config={
             "Years listed": st.column_config.NumberColumn(format="%.1f"),
@@ -318,7 +324,9 @@ with t6:
             "Volatility % (yearly)": st.column_config.NumberColumn(format="%.1f"),
             "Worst fall, 5y %": st.column_config.NumberColumn(format="%.1f"),
             "Median turnover (NPR m)": st.column_config.NumberColumn(format="%.1f"),
-            "Bonus, last 5 FY (%)": st.column_config.NumberColumn(format="%.1f")})
+            "Bonus, last 5 FY (%)": st.column_config.NumberColumn(format="%.1f"),
+            "Avg cash dividend % (3 FY)": st.column_config.NumberColumn(format="%.1f"),
+            "Cash yield %": st.column_config.NumberColumn(format="%.1f")})
         st.caption(f"{len(scr)} ordinary shares screened. Returns include bonus-share adjustment but not cash "
                    "dividends. The turnover check uses NPR 1 million a day; change it in longterm.py.")
         with st.expander("What the six checks are"):

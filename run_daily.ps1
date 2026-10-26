@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Continue"
 Set-Location "$HOME\nepse-ranker"
 .\.venv\Scripts\Activate.ps1
 New-Item -ItemType Directory -Force -Path logs | Out-Null
@@ -20,10 +20,12 @@ function Invoke-Step($name, $cmdArgs) {
 Write-Log "BEGIN daily run"
 $failed = @()
 if ((Invoke-Step "floorsheet" @("floorsheet-collect")) -ne 0) { $failed += "floorsheet" }
+if ((Invoke-Step "floorsheet-build" @("floorsheet-build")) -ne 0) { $failed += "floorsheet-build" }
 if ((Invoke-Step "prices" @("update")) -ne 0) { $failed += "prices" }
 if ((Invoke-Step "news-fetch" @("news-fetch")) -ne 0) { $failed += "news-fetch" }
 foreach ($step in @("build", "features", "news-build", "predict")) {
     if ((Invoke-Step $step @($step)) -ne 0) { $failed += $step; break }
 }
 Invoke-Step "status" @("status") | Out-Null
+& "$HOME\nepse-ranker\backup.ps1" | ForEach-Object { Write-Log "backup: $_" }
 if ($failed.Count -eq 0) { Write-Log "RUN OK" } else { Write-Log ("RUN FINISHED WITH FAILURES: " + ($failed -join ", ")) }

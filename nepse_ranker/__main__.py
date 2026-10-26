@@ -73,6 +73,7 @@ def main(argv=None):
     sub.add_parser("update", help="download any days missed since the last run")
     sub.add_parser("news-fetch", help="download official NEPSE news and disclosures")
     sub.add_parser("news-inspect", help="show what the saved news looks like")
+    sub.add_parser("floorsheet-build", help="broker concentration and trade-pattern measures from the floorsheet")
     sub.add_parser("status", help="health check: how fresh is every dataset")
     sub.add_parser("dividends-build", help="extract cash dividend and bonus declarations from announcements")
     sub.add_parser("longterm-build", help="build the long-term risk and history screen")
@@ -135,6 +136,9 @@ def main(argv=None):
     elif a.cmd == "status":
         from .status import run_status
         run_status(p)
+    elif a.cmd == "floorsheet-build":
+        from .floorsheet_features import run_floorsheet_build
+        run_floorsheet_build(p)
     elif a.cmd == "news-inspect":
         from .news import inspect_news
         print(inspect_news(p))

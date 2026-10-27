@@ -1,4 +1,4 @@
-﻿"""Automated checks for the parts of the pipeline where a silent mistake would be costly.
+"""Automated checks for the parts of the pipeline where a silent mistake would be costly.
 
 Run from the project folder with:   python -m pytest -q
 They use made-up practice data, so they need no internet and take about a minute.
@@ -165,3 +165,19 @@ def test_floorsheet_page_is_unpacked():
     rows, pages, total = _page_rows(resp)
     assert len(rows) == 2 and pages == 3 and total == 1234
     assert _page_rows("not a dict") == ([], None, None)
+
+
+# ---------------------------------------------------------------- live track record
+def test_ranking_log_keeps_the_first_ranking_saved_for_a_date(tmp_path):
+    from nepse_ranker.config import Paths
+    from nepse_ranker.livelog import append_history, history_path
+    p = Paths(tmp_path)
+    p.ensure()
+    day = pd.Timestamp("2026-10-16")
+    first = pd.DataFrame({"date": day, "symbol": ["A", "B"], "rank": [1, 2], "score": [0.9, 0.1],
+                          "score_pct": [100.0, 50.0], "close": [10.0, 20.0]})
+    changed = first.assign(rank=[2, 1])
+    assert append_history(first, p) == 1
+    assert append_history(changed, p) == 0                  # a rerun must not rewrite history
+    saved = pd.read_parquet(history_path(p)).sort_values("symbol")
+    assert list(saved["rank"]) == [1, 2]

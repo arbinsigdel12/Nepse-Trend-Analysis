@@ -1,4 +1,4 @@
-﻿"""One-screen health check: how fresh is every dataset, and what needs attention."""
+"""One-screen health check: how fresh is every dataset, and what needs attention."""
 from __future__ import annotations
 
 import json
@@ -75,6 +75,13 @@ def run_status(p: Paths | None = None) -> list:
         add("CHECK", "Ranking", f"ranking is for {last_rank}, features go to {last_feat}. Run: predict")
     else:
         add("OK", "Ranking", f"for {last_rank}")
+    # live track record
+    hist_path = p.base / "predictions" / "history.parquet"
+    if hist_path.exists():
+        saved = pd.read_parquet(hist_path, columns=["date"])["date"].nunique()
+        add("OK", "Live log", f"{saved} daily ranking(s) saved. Run live-check once a few weeks have passed")
+    else:
+        add("CHECK", "Live log", "no rankings saved yet. They are saved each time predict runs")
     # news
     table = p.news_dir.parent / "news_table.parquet"
     last_news = _max_date(table, "published")

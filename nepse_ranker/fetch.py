@@ -83,8 +83,8 @@ def backfill(start: date, end: date | None = None, p: Paths | None = None) -> di
                 stats["errors"] += 1
                 consecutive_errors += 1
                 print(f"{day}: error: {type(e).__name__}: {e}")
-                if consecutive_errors >= 5:
-                    stats["stopped"] = "5 errors in a row. Stopping so we do not hammer the server."
+                if consecutive_errors >= 20:
+                    stats["stopped"] = "20 errors in a row. Stopping so we do not hammer the server."
                     break
                 continue
             consecutive_errors = 0

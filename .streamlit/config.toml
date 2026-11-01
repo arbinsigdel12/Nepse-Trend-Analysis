@@ -1,5 +1,10 @@
-﻿[theme]
+[theme]
 primaryColor = "#0F766E"
+baseRadius = "large"
+
+[client]
+# "minimal" hides the Deploy button and developer toolbar items
+toolbarMode = "minimal"
 
 [browser]
 gatherUsageStats = false
